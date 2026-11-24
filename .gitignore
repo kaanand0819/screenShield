@@ -1,0 +1,28 @@
+# Local evaluation footage; case-insensitive extension patterns.
+*.[mM][pP]4
+*.[mM][oO][vV]
+*.[aA][vV][iI]
+*.[mM][kK][vV]
+# Local Python artifacts and optional model/environment placement.
+__pycache__/
+*.py[cod]
+*.task
+.venv/
+
+# Release artifacts, logs, and local clip folders.
+*.mp4
+*.mov
+*.avi
+*.mkv
+clips/
+*.log
+dist/
+build/
+*.spec
+
+# macOS metadata and local development secrets.
+.DS_Store
+._*
+.env
+.env.*
+venv/

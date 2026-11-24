@@ -1,0 +1,64 @@
+{
+  "version": "2026-11-24",
+  "effective_date": "November 24, 2026",
+  "privacy": {
+    "title": "Privacy Policy",
+    "intro": "Screen Shield is an independent student-built project by Kabir Anand. This policy describes the Mac app and its download page. Acknowledging this policy does not waive your privacy rights.",
+    "sections": [
+      {
+        "title": "1. Camera and screen information stays local",
+        "body": "When enabled, Screen Shield processes webcam frames, face landmarks, face positions, and head-orientation estimates in your Mac’s memory to decide when to show a privacy cover. It does not enroll identities, create an identity database, or try to identify people by name.\n\nWhen the cover is needed, the app briefly holds a screenshot in memory, blurs it, and displays the frozen image. Screen Shield does not save or transmit webcam frames, face images, or screenshots. In-memory processing is not a promise of secure memory erasure by Python or macOS."
+      },
+      {
+        "title": "2. Permissions and controls",
+        "body": "The app requests Camera access for local detection and Screen Recording access for its in-memory screen cover. The optional global shortcut uses local keyboard events; the app does not record or upload keystrokes. Accessibility or Input Monitoring permission may be needed. You can use the app buttons if the shortcut is unavailable.\n\nDisabling or quitting releases the webcam. Snoozing pauses processing but may keep an already-open camera allocated, so its light can remain on. You can revoke permissions through macOS System Settings."
+      },
+      {
+        "title": "3. Files stored on your Mac",
+        "body": "The app stores preferences, a small acceptance record containing the policy version, document checksum and acceptance time, and library cache data on your Mac. These are not video recordings. The packaged Mac app uses ~/Library/Application Support/Screen Shield/. The acceptance record is not sent to the developer.\n\nOptional debug output contains numeric face sizes, head angles, states, and technical errors. The app does not install a file logger. macOS or third-party runtimes may create their own crash or diagnostic records under your system settings. Screen Shield does not automatically send those records to the developer.\n\nIf you record your own evaluation clips with another app, Screen Shield can read those local files for testing; it does not upload them or save extracted frames."
+      },
+      {
+        "title": "4. Download-page storage and hosting",
+        "body": "The supplied download page contains no analytics, advertising scripts, remote fonts, accounts, or camera access. It uses browser local storage, when available, to remember acceptance of this policy and the Terms of Service. You can remove that record by clearing this site’s browser storage. If storage is unavailable, acceptance applies only to the current page session.\n\nIf this page or its downloads are hosted online, the hosting provider may receive ordinary requests, IP addresses, browser information and download metadata under that provider’s policies. That hosting traffic is separate from the local app; no camera or screen content is included. Following an external link, such as Apple’s installation guidance, is subject to that site’s practices."
+      },
+      {
+        "title": "5. Your choices and other people",
+        "body": "You can decline the policies and leave the app unopened, disable detection, quit, revoke macOS permissions, or uninstall. To remove local preferences and the acceptance record after quitting, remove the Screen Shield folder in your user Application Support directory. Delete browser storage separately if desired.\n\nUse the camera only where you have permission and consider the privacy of people nearby. Screen Shield is not designed to identify or profile children or other individuals. It has no user-account registration or intentional collection of information for the developer."
+      },
+      {
+        "title": "6. Changes and contact",
+        "body": "If these documents change, their version/checksum changes and the supplied download page and app ask for acceptance again. Review a new version before accepting.\n\nFor privacy questions, contact Kabir Anand at screenshield.riverboat836@silomails.com. This public address is a forwarding alias. A support email is processed by email/forwarding providers and delivered to the developer’s private mailbox; it is not end-to-end encrypted merely because an alias is used. Do not send camera footage, screenshots, or other sensitive information unless you choose to share it."
+      }
+    ]
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "intro": "These terms cover the supplied Screen Shield download page and packaged app provided by Kabir Anand. Please read them before choosing to accept. If you do not agree, cancel the download or quit the app.",
+    "sections": [
+      {
+        "title": "1. Student-built preview",
+        "body": "Screen Shield is an independent student-built, experimental privacy aid. It is not a certified security product, an Apple product, or a guarantee that nobody can see, photograph, record or capture your screen. It is not represented as endorsed by a school or other institution.\n\nThis preview is not signed with an Apple Developer ID certificate or notarized by Apple. macOS may block internet-downloaded copies. Student authorship is context, not evidence that software is safe. Only choose to open a copy if you trust its source and have reviewed the risks. Do not disable Gatekeeper globally."
+      },
+      {
+        "title": "2. Limits of protection",
+        "body": "Detection can miss viewers or produce false alerts. It depends on camera placement, lighting, face size, head angle, permissions and hardware. It cannot reliably detect people outside the camera view, a phone filming the screen, reflections, or software screenshots and recording. The cover affects the primary display and may not cover secure system interfaces or every fullscreen space.\n\nCamera loss, a blocked driver, an app crash, a paused process or a native-library problem can interrupt protection. The fail-closed setting is an optional cover policy, not a security guarantee. Do not rely on Screen Shield as your only control for confidential information, workplace requirements, legal obligations or regulated data."
+      },
+      {
+        "title": "3. Responsible use and permissions",
+        "body": "Use the app only on devices you own or are authorized to administer, where camera use and monitoring are permitted. Obtain any permissions required by your school, workplace, household or other applicable rules. Do not use it to stalk, secretly monitor, harass or unlawfully collect information about others.\n\nYou control macOS permissions and may revoke them. Accepting these terms does not itself grant Camera, Screen Recording, Accessibility or Input Monitoring access. macOS asks for those permissions separately."
+      },
+      {
+        "title": "4. License and third-party components",
+        "body": "Screen Shield’s open-source code is provided under the MIT license included with the project. Nothing in these terms takes away rights that the MIT license or a third-party license grants you. Bundled Python, libraries and model weights have their own applicable licenses and notices.\n\nThese terms describe use of the supplied app and page; they do not create a paid subscription, automatic renewal, service-level commitment or requirement to purchase anything."
+      },
+      {
+        "title": "5. Availability, warranty and responsibility",
+        "body": "The app and page are provided AS IS and AS AVAILABLE, to the extent permitted by applicable law, without promises of accuracy, uninterrupted availability, suitability for a particular purpose or freedom from bugs. There is no guaranteed support response or maintenance schedule.\n\nTo the extent permitted by law, the developer is not responsible for losses caused by missed viewers, false alerts, interruptions, reliance on the app, or use outside its intended scope. Nothing here excludes liability, consumer protections, privacy rights or other rights that cannot lawfully be excluded. This paragraph does not expand the disclaimer in a way that overrides mandatory law."
+      },
+      {
+        "title": "6. Acceptance, changes and stopping use",
+        "body": "The supplied download flow and the first-run app screen ask you to review both documents, acknowledge the Privacy Policy, and explicitly agree to these terms. An acceptance record is stored locally; the app does not send it to the developer. You may stop using the app at any time by disabling, quitting or uninstalling it.\n\nA document update requires renewed acceptance before the updated app starts monitoring. If you disagree with a revision, do not accept it. Contact Kabir Anand at screenshield.riverboat836@silomails.com if you have questions."
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+# Milestones 1–4. Tkinter is supplied by Python/the OS.
+mediapipe>=0.10.21,<0.11
+opencv-python>=4.11,<5
+numpy>=1.26,<3
+mss>=10,<11
+Pillow>=11,<14
+pystray>=0.19.5,<0.20
+pynput>=1.7.6,<2
