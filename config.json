@@ -32,5 +32,9 @@
   "start_enabled": true,
   "process_fps": 10,
   "camera_retry_seconds": 5.0,
-  "fail_closed": false
+  "fail_closed": false,
+  "owner_min_face_width_ratio": 0.16,
+  "owner_max_horizontal_offset": 0.22,
+  "owner_max_vertical_offset": 0.35,
+  "owner_retention_width_ratio": 0.85
 }

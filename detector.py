@@ -26,6 +26,8 @@ DEFAULT_CONFIG = {
     "owner_centrality_weight": 0.1, "owner_max_center_distance": 0.12,
     "owner_min_iou": 0.15, "owner_min_size_ratio": 0.5,
     "owner_memory_seconds": 2.0, "min_face_width_ratio": 0.12,
+    "owner_min_face_width_ratio": 0.16, "owner_retention_width_ratio": 0.85,
+    "owner_max_horizontal_offset": 0.22, "owner_max_vertical_offset": 0.35,
     "max_yaw_deg": 35, "max_pitch_deg": 30, "pnp_focal_length_ratio": 1.0,
     "pnp_max_reprojection_error_ratio": 0.03, "min_frame_brightness": 35.0,
     "min_face_brightness": 40.0, "trigger_seconds": 0.7, "clear_seconds": 2.0,
@@ -41,6 +43,8 @@ def validate_config(values: dict) -> dict:
     fractions = {"min_face_detection_confidence", "min_face_presence_confidence",
                  "min_tracking_confidence", "owner_centrality_weight", "min_face_width_ratio",
                  "owner_max_center_distance", "owner_min_iou", "owner_min_size_ratio",
+                 "owner_min_face_width_ratio", "owner_retention_width_ratio",
+                 "owner_max_horizontal_offset", "owner_max_vertical_offset",
                  "pnp_max_reprojection_error_ratio"}
     ranges = {key: (0, 1) for key in fractions}
     ranges.update({"camera_index": (0, 1024), "camera_width": (1, 16384),
@@ -278,12 +282,24 @@ class Detector:
         return math.degrees(math.atan2(x, z)), math.degrees(math.atan2(-y, math.hypot(x, z)))
 
     def _select_owner(self, faces, timestamp):
-        """Match geometry rather than MediaPipe list indices, which can reorder."""
+        """Only nearby, centrally positioned faces can occupy the owner role."""
         cfg = self.config
+        positioned = []
+        for face in faces:
+            left, top, right, bottom = face.normalized_box
+            if (abs((left + right) / 2 - 0.5) <= cfg["owner_max_horizontal_offset"]
+                    and abs((top + bottom) / 2 - 0.5) <= cfg["owner_max_vertical_offset"]):
+                positioned.append(face)
+        eligible = [face for face in positioned
+                    if face.width_fraction >= cfg["owner_min_face_width_ratio"]]
         matches = []
         if self.owner_box is not None and timestamp - self.owner_last_seen <= cfg["owner_memory_seconds"]:
             a, b, c, d = self.owner_box
-            for face in faces:
+            for face in positioned:
+                # A smaller face can retain an existing geometric match, but
+                # cannot acquire the owner role using this relaxed threshold.
+                if face.width_fraction < cfg["owner_min_face_width_ratio"] * cfg["owner_retention_width_ratio"]:
+                    continue
                 left, top, right, bottom = face.normalized_box
                 distance = math.hypot((left + right - a - c) / 2,
                                       (top + bottom - b - d) / 2)
@@ -295,7 +311,10 @@ class Detector:
                 if (distance <= cfg["owner_max_center_distance"] and iou >= cfg["owner_min_iou"]
                         and size_ratio >= cfg["owner_min_size_ratio"]):
                     matches.append((distance, -iou, face.index, face))
-        owner = min(matches, key=lambda item: item[:3])[3] if matches else max(faces, key=lambda face: face.owner_score)
+        owner = min(matches, key=lambda item: item[:3])[3] if matches else max(eligible, key=lambda face: face.owner_score, default=None)
+        if owner is None:
+            self.owner_box = self.owner_last_seen = None
+            return None
         self.owner_box = owner.normalized_box
         self.owner_last_seen = timestamp
         return owner
@@ -378,11 +397,12 @@ class Detector:
         if not faces:
             return self._result(None, timestamp, unknown_reason)
         owner = self._select_owner(faces, timestamp)
+        owner_index = owner.index if owner is not None else None
         viewers = tuple(face.index for face in faces
-                        if face.index != owner.index
+                        if face.index != owner_index
                         and self._candidate_reason(face) == "accepted")
         return self._result(bool(viewers), timestamp, "viewer" if viewers else "no_qualifying_viewer",
-                            tuple(faces), owner.index, viewers)
+                            tuple(faces), owner_index, viewers)
 
     def _result(self, present, timestamp, reason, faces=(), owner=None, viewers=()):
         previous_state = "INTRUDER" if self.gate.active else "SAFE"

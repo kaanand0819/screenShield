@@ -1,5 +1,5 @@
 {
-  "version": "2026-11-24",
+  "version": "2026-11-24.1",
   "effective_date": "November 24, 2026",
   "privacy": {
     "title": "Privacy Policy",
@@ -7,11 +7,11 @@
     "sections": [
       {
         "title": "1. Camera and screen information stays local",
-        "body": "When enabled, Screen Shield processes webcam frames, face landmarks, face positions, and head-orientation estimates in your Mac’s memory to decide when to show a privacy cover. It does not enroll identities, create an identity database, or try to identify people by name.\n\nWhen the cover is needed, the app briefly holds a screenshot in memory, blurs it, and displays the frozen image. Screen Shield does not save or transmit webcam frames, face images, or screenshots. In-memory processing is not a promise of secure memory erasure by Python or macOS."
+        "body": "When enabled, Screen Shield processes webcam frames, face landmarks, face positions, and head-orientation estimates in your Mac’s memory to decide when to show a privacy cover. It does not enroll identities, create an identity database, or try to identify people by name.\n\nWhen the cover is needed, the app briefly holds a screenshot in memory, blurs it, and displays the frozen image. Screen Shield does not save or transmit webcam frames, face images, or screenshots. In-memory processing is not a promise of secure memory erasure by Python or macOS.\n\nIf you open optional Model view, the app displays the live camera locally with colored face boxes and head-angle estimates for testing. This opt-in display is not recorded or transmitted. The privacy cover is suppressed while Model view is open, including during a camera outage."
       },
       {
         "title": "2. Permissions and controls",
-        "body": "The app requests Camera access for local detection and Screen Recording access for its in-memory screen cover. The optional global shortcut uses local keyboard events; the app does not record or upload keystrokes. Accessibility or Input Monitoring permission may be needed. You can use the app buttons if the shortcut is unavailable.\n\nDisabling or quitting releases the webcam. Snoozing pauses processing but may keep an already-open camera allocated, so its light can remain on. You can revoke permissions through macOS System Settings."
+        "body": "The app requests Camera access for local detection and Screen Recording access for its in-memory screen cover. The optional global shortcut uses local keyboard events; the app does not record or upload keystrokes. Accessibility or Input Monitoring permission may be needed. You can use the app buttons if the shortcut is unavailable.\n\nDisabling or quitting releases the webcam. Snoozing pauses processing but may keep an already-open camera allocated, so its light can remain on. You can revoke permissions through macOS System Settings.\n\nOpening Model view while disabled temporarily enables the camera for testing. Closing it restores the previous enabled or disabled setting; if previously disabled, the camera is released. Model view continues processing during a protection snooze so you can test the model."
       },
       {
         "title": "3. Files stored on your Mac",
@@ -41,7 +41,7 @@
       },
       {
         "title": "2. Limits of protection",
-        "body": "Detection can miss viewers or produce false alerts. It depends on camera placement, lighting, face size, head angle, permissions and hardware. It cannot reliably detect people outside the camera view, a phone filming the screen, reflections, or software screenshots and recording. The cover affects the primary display and may not cover secure system interfaces or every fullscreen space.\n\nCamera loss, a blocked driver, an app crash, a paused process or a native-library problem can interrupt protection. The fail-closed setting is an optional cover policy, not a security guarantee. Do not rely on Screen Shield as your only control for confidential information, workplace requirements, legal obligations or regulated data."
+        "body": "Detection can miss viewers or produce false alerts. It depends on camera placement, lighting, face size, head angle, permissions and hardware. It cannot reliably detect people outside the camera view, a phone filming the screen, reflections, or software screenshots and recording. The cover affects the primary display and may not cover secure system interfaces or every fullscreen space.\n\nCamera loss, a blocked driver, an app crash, a paused process or a native-library problem can interrupt protection. The fail-closed setting is an optional cover policy, not a security guarantee. Do not rely on Screen Shield as your only control for confidential information, workplace requirements, legal obligations or regulated data.\n\nModel view is a testing mode: it intentionally turns the privacy cover off while its window is open. Green is an estimated owner, yellow is another detected face that does not pass viewer checks, and red is a candidate that passes them. These colors do not establish identity, eye gaze, or harmful intent. Close Model view to return to the previous protection setting."
       },
       {
         "title": "3. Responsible use and permissions",

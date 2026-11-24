@@ -1,6 +1,6 @@
 # Screen Shield
 
-Screen Shield is a local Python desktop app that uses a webcam to notice a second person facing your screen and covers the primary monitor with a frozen, strongly blurred screenshot until the viewer leaves. It runs entirely on your computer, offers enable/disable and snooze controls, and releases the webcam when disabled. Windows and Linux have a tray menu; macOS uses the global hotkey and console because Tkinter owns its main thread. This is a privacy aid, not a security boundary or a guarantee that nobody can see your screen.
+Screen Shield is a local Python desktop app that uses a webcam to notice a second person facing your screen and covers the primary monitor with a frozen, strongly blurred screenshot until the viewer leaves. It runs entirely on your computer, offers enable/disable and snooze controls, and releases the webcam when disabled. Windows and Linux have a tray menu; macOS uses a control window and the global hotkey because Tkinter owns its main thread. This is a privacy aid, not a security boundary or a guarantee that nobody can see your screen.
 
 ## Policies, support, and acceptance (1.0.2)
 
@@ -53,7 +53,7 @@ installers are retained under `dist/previous-1.0.0/` and are not linked by the p
 
 ## Mac app installer (Apple Silicon preview)
 
-**1.0.3 policy-screen fix:** the document reader now resizes inside a grid with a fixed footer. The **Continue to Screen Shield** button stays visible, enables only after both reviews and acknowledgments, and opens the normal app controls. Enter also continues when ready. Existing consent remains valid because policy text is unchanged.
+**1.0.3 policy-screen fix:** the document reader now resizes inside a grid with a fixed footer. The **Continue to Screen Shield** button stays visible, enables only after both reviews and acknowledgments, and opens the normal app controls. Enter also continues when ready. The 1.1.0 Model view release updates the policies to describe the optional camera display and cover suppression, so it requests renewed acceptance.
 
 **1.0.1 startup fix:** macOS 26 rejects pynput keyboard-layout queries from a
 background thread. The Mac listener now captures layout data on the main Tk
@@ -68,7 +68,7 @@ or later**; it is not an Intel or Windows build. Python, runtime libraries, and
 the Face Landmarker model are bundled. No Terminal, pip, or separate model
 installation is needed to use the app.
 
-1. Download `Screen-Shield-1.0.3-macOS-arm64.dmg` in Chrome or another browser,
+1. Download `Screen-Shield-1.1.2-macOS-arm64.dmg` in Chrome or another browser,
    or open the local disk image from this project's `dist` folder.
 2. Open the disk image and drag **Screen Shield** into **Applications**.
 3. Eject the disk image and launch **Screen Shield** from Applications.
@@ -106,13 +106,13 @@ accuracy, permissions, and the screen cover still need hands-on validation.
 
 ## How it works
 
-1. **Owner:** score face area with a small center bonus. Keep the previous owner when position, overlap, and size still match; other faces are candidate viewers. This is geometric tracking, not identity recognition.
+1. **Owner:** first require a nearby, centrally positioned face (at least 16% of frame width, center within 22% horizontally and 35% vertically of frame center). Among eligible faces, score area with a small center bonus. Keep the previous owner while position, overlap, and size match, allowing face width to drop to 85% of the acquisition threshold (13.6% of frame width by default) to reduce role flicker when leaning back. Retention cannot enroll a new owner. If none qualifies, there is no owner; every detected face is a candidate viewer. This is geometric tracking, not identity recognition.
 2. **Distance:** ignore candidate landmark boxes smaller than `min_face_width_ratio` of frame width.
 3. **Head pose:** accept only candidates within yaw/pitch limits, using the facial transformation matrix or a six-point solvePnP fallback. Head direction estimates orientation, not eye gaze.
 4. **Time:** trigger after continuous qualifying presence; clear after known absence. Timing uses monotonic seconds live and `frame_index / FPS` for recorded clips.
 5. **Unknown frames:** no-face/dark/unreadable frames cannot trigger or clear the state. They hold state, break pending presence, and pause clearing. A dead feed also holds state while the app retries.
 
-The cover captures once with mss **before its window appears**, blurs in memory, and stays frozen until hidden. Capture failure produces a solid black cover. Tk runs on the main thread; camera/model, hotkey, and supported tray services use separate threads with queued control/status events. Capture is requested at 640×480; inference is capped at 10 FPS by default. No camera reads or inference occur while snoozed (an in-flight call can finish). Snooze keeps an already-open camera allocated; disabling closes it and destroys detector state. Re-enabling starts fresh.
+The cover captures once with mss **before its window appears**, blurs in memory, and stays frozen until hidden. Capture failure produces a solid black cover. Tk runs on the main thread; camera/model, hotkey, and supported tray services use separate threads with queued control/status events. Capture is requested at 640×480; inference is capped at 10 FPS by default. No camera reads or inference occur while snoozed (an in-flight call can finish), unless optional Model view is open for testing. Snooze keeps an already-open camera allocated; disabling closes it and destroys detector state. Re-enabling starts fresh.
 
 ## Install and run
 
@@ -173,6 +173,22 @@ Use `python main.py --config /absolute/path/config.json` for an external configu
 
 A local development test under a restricted macOS command sandbox aborted inside MediaPipe's `DrishtiMetalHelper`/`TensorsToDetectionsCalculator` with `SIGABRT`; the same generated-frame test passed outside that sandbox. Dismiss a leftover test crash dialog with **Ignore/OK** and launch from ordinary Terminal. No administrator privileges are required. Python cannot catch this native abort with `try/except`. If ordinary Terminal also crashes, stop retrying and inspect the newest Python report in `~/Library/Logs/DiagnosticReports/` before diagnosing that installed Python/MediaPipe/macOS combination. Do not disable crash reporting.
 
+## Primary-user position
+
+Green is reserved for an eligible nearby, central face. If the seat is empty and nobody qualifies, every visible face is evaluated as a viewer candidate, even if only one face is visible. Position and apparent size are heuristics, not identity or actual seating recognition. Start with `owner_min_face_width_ratio: 0.16`, `owner_max_horizontal_offset: 0.22`, and `owner_max_vertical_offset: 0.35`; tune against your normal seated position in Model view. If seated users stay yellow/red, lower the owner minimum width or widen the allowed center offsets. Increasing the minimum width prevents more distant faces from becoming owner. An existing geometric owner match may remain green down to `owner_min_face_width_ratio × owner_retention_width_ratio` (13.6% by default). Smaller distant faces do not acquire ownership through this retention rule. The existing viewer distance filter still applies independently. Lowering acquisition width also lets some more distant central faces qualify, so verify your empty-seat test as well.
+
+## Model view (optional testing)
+
+Click **Open model view (testing)** in the Mac control window, or choose **Model view (testing)** from the tray on Windows/Linux. It opens a live local camera popup using the same detector and camera as protection:
+
+- **Green — owner estimate:** the detector's stable nearby/central face assignment, not identity recognition. No green box is assigned when no face qualifies as a seated user.
+- **Yellow — other face:** a detected non-owner that does not pass all viewer checks, for example too small, turned away, or lacking a usable pose.
+- **Red — viewer candidate:** a non-owner that passes the existing distance, lighting and head-angle rules. Red is immediate; the displayed SAFE/INTRUDER state still uses temporal hysteresis.
+
+**The screen cover is OFF while this window is open**, including fail-closed camera outages. Close it to restore the previous enable/disable setting. Opening it while disabled temporarily starts the camera; closing releases it again. Model view continues processing during a protection snooze. Camera loss clears the displayed frame and shows a retry message. No preview frames are saved or transmitted; only the newest requested frame is queued in memory.
+
+This uses the existing pretrained MediaPipe Face Landmarker and Screen Shield's rules; it does not retrain a model or measure actual eye gaze, identify people, or establish malicious intent. A person whose face is not visible cannot be highlighted. Test with another person facing toward and away from the display, then close the view to test the actual privacy cover separately.
+
 ## Controls
 
 | Action | Control |
@@ -183,7 +199,7 @@ A local development test under a restricted macOS command sandbox aborted inside
 | Quit | Tray **Quit** on Windows/Linux, or **Ctrl+C in the launching terminal** on every OS. On macOS, the control window also has Quit and supports Command+Q. |
 | Detector-only diagnostic | `python detector.py`; `q` in its terminal or Ctrl+C exits. This diagnostic exits on repeated camera failures; the desktop launcher retries. |
 
-Snooze preserves the current detection state and an already-open camera, but skips camera reads and model inference. It also postpones reopen attempts while the worker is paused. The cover can return at expiry if INTRUDER or fail-closed outage persists. Disabled always hides the cover, releases the webcam completely, and resets SAFE. Snooze survives a toggle and never enables a disabled app. Toggles during start/stop transitions are ignored; queued old-run events cannot affect a new detector. The app joins owned threads on shutdown.
+Snooze preserves the current detection state and an already-open camera, but skips camera reads and model inference unless Model view is open. It also postpones reopen attempts while the worker is paused. The cover can return at expiry if INTRUDER or fail-closed outage persists. Disabled always hides the cover, releases the webcam completely, and resets SAFE. Snooze survives a toggle and never enables a disabled app. Toggles during start/stop transitions are ignored; queued old-run events cannot affect a new detector. The app joins owned threads on shutdown.
 
 Change `hotkey`, for example to `ctrl+shift+s`, and restart. Aliases include control/ctrl, option/alt, command/cmd, and super/cmd; `<ctrl>+<alt>+s` and named keys such as `f8` are accepted. Invalid syntax/duplicate keys log an error and use Ctrl+Alt+S. Unavailable key or tray services are reported to console; Ctrl+C remains available.
 
@@ -213,6 +229,10 @@ Defaults are shared by all entry points in `detector.DEFAULT_CONFIG`. Timings ar
 | `min_face_detection_confidence` | `0.65` | Detection confidence threshold (0–1). Higher may miss more faces. |
 | `min_face_presence_confidence` | `0.65` | Landmark presence threshold (0–1). |
 | `min_tracking_confidence` | `0.65` | Tracking confidence threshold (0–1). |
+| `owner_min_face_width_ratio` | `0.16` | Minimum face width / frame width to qualify as owner. Larger values require a closer user. |
+| `owner_retention_width_ratio` | `0.85` | Existing matched owner may shrink to this fraction of the owner minimum width; new faces still need the full acquisition width. |
+| `owner_max_horizontal_offset` | `0.22` | Maximum horizontal distance of face center from frame center, as a fraction of frame width. |
+| `owner_max_vertical_offset` | `0.35` | Maximum vertical distance of face center from frame center, as a fraction of frame height. |
 | `owner_centrality_weight` | `0.1` | Central owner area bonus (0–1); 0 uses largest area only. |
 | `owner_max_center_distance` | `0.12` | Maximum normalized center movement for retaining the owner (0–1). |
 | `owner_min_iou` | `0.15` | Minimum box intersection/union for owner matching (0–1). |
@@ -255,6 +275,8 @@ The table reports PASS, FALSE POSITIVE, MISS, or ERROR. Time means first false t
 
 Unreadable/empty clips, invalid FPS, and early EOF relative to the decoder's reported frame count are ERRORs excluded from scoring; a decodable all-unknown intruder clip is still a MISS. Exit codes: 0 for completed measurements (including FP/misses), 1 for input/processing errors, 130 for cancellation.
 
+For the owner-position behavior, label normal seated-user-only clips `alone_…`; an empty seat with a distant viewer facing the screen belongs in `intruder_…`, even if that is the only face in the frame. Include both cases when retuning.
+
 `--sweep` tests widths 0.08/0.10/0.12/0.15/0.18 × yaw limits 25/30/35/45. It runs inference once per clip and caches **only numeric face observations in memory**, replaying identical owner/filter/timing logic with fresh state per combination. Only one clip cache is retained at a time. Rank by fewest false positives, then misses, with printed grid order breaking exact ties. It never changes config automatically. Use held-out clips before adopting settings. `--debug` prints each frame's candidate diagnostics only for failing clip/config pairs; combining it with `--sweep` can produce substantial console output.
 
 Programmatic use: `Detector(config, overrides={"max_yaw_deg": 30})` creates private config and fresh state. Pass clip seconds to `process_frame(frame, timestamp=...)`, and call `close()` in `finally`. `load_model=False` is for numeric `process_observation` replay only. Changing model, lighting, or owner-score settings requires fresh inference.
@@ -280,7 +302,7 @@ No real labeled-clip scores or tuned values were supplied. Synthetic/mock checks
 
 - Cannot see someone outside the webcam view, a phone camera pointed at the screen, or software screenshots/screen recording.
 - Reflections, photos, displays showing faces, partial occlusion, and very low light can confuse the model; unknown intervals intentionally hold state.
-- A closer/more central person, overlapping/crossing faces, or a lone non-owner can confuse the geometric owner heuristic. No identity or eye-gaze recognition is performed.
+- A closer/more central person or overlapping/crossing faces can confuse the geometric owner heuristic. Owner eligibility estimates sitting distance/position from face size and location; it cannot measure actual distance or verify someone is seated. A distant lone face is a candidate, but an unauthorized person who moves into the owner zone can still become green. No identity or eye-gaze recognition is performed.
 - Maximum four faces. The landmark box is smaller than a full head box, and solvePnP uses an approximate face/camera model.
 - Coverage is the primary monitor, with placement/scaling dependent on the window manager. OS secure screens and other macOS fullscreen Spaces may sit outside the cover.
 - The cover freezes a screenshot; it does not lock the OS or prevent capture by other software. A busy/suspended process, blocked driver, denied permission, or native library crash can interrupt protection.
@@ -288,7 +310,7 @@ No real labeled-clip scores or tuned values were supplied. Synthetic/mock checks
 
 ## Privacy and repository hygiene
 
-Inference and controls are fully local. Runtime has no analytics/upload/network client. Webcam frames and screenshots are held in memory only and are never saved or transmitted by Screen Shield. The overlay image is released when hidden; Python/OS memory handling does not guarantee secure erasure. Disabling stops the detector and fully releases the webcam; snoozing skips processing but may keep the camera light on because the handle is still allocated. The global listener recognizes a shortcut without recording/transmitting keystrokes. Logs go to console at INFO level with warnings/errors and optional numeric face diagnostics; no frames/images are logged or saved, and no file logger is installed.
+Inference and controls are fully local. Runtime has no analytics/upload/network client. Webcam frames and screenshots are held in memory only and are never saved or transmitted by Screen Shield. The overlay image is released when hidden; Python/OS memory handling does not guarantee secure erasure. Disabling stops the detector and fully releases the webcam; snoozing skips processing (except optional Model view) but may keep the camera light on because the handle is still allocated. Model view displays frames locally without recording them. The global listener recognizes a shortcut without recording/transmitting keystrokes. Logs go to console at INFO level with warnings/errors and optional numeric face diagnostics; no frames/images are logged or saved, and no file logger is installed.
 
 `.gitignore` excludes video extensions, `clips/`, bytecode, `.venv/`, logs, `dist/`, `build/`, and PyInstaller specs. Keep footage outside the repository anyway. Ignore rules do not untrack existing commits or override `git add -f`; inspect `git status` before publishing. The project includes the application files, `index.html`, `.gitignore`, and `LICENSE`; distribution artifacts are under the ignored `dist/` folder. No Git repository was initialized or published during prep.
 

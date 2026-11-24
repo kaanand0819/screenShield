@@ -15,7 +15,7 @@ import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from PIL import Image, ImageDraw, ImageTk
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 from detector import DEFAULT_CONFIG, Detector, load_config
 from overlay import Overlay
@@ -63,7 +63,8 @@ def shield_image(enabled):
     return image
 
 
-def detector_loop(config, stop, events, generation, paused=None):
+def detector_loop(config, stop, events, generation, paused=None,
+                  preview_requested=None, preview_frames=None):
     """Own camera/model here, retry dead feeds, and never call Tk."""
     camera = detector = None
     paused = paused if paused is not None else threading.Event()
@@ -151,6 +152,19 @@ def detector_loop(config, stop, events, generation, paused=None):
             if state != previous_state:
                 send("state", state)
                 previous_state = state
+            if preview_requested is not None and preview_requested.is_set() and preview_frames is not None:
+                # One shared camera/model. Only the newest requested frame is
+                # retained; Tk objects are created exclusively by the UI thread.
+                packet = (generation, frame.copy(), detector.last_detection)
+                try:
+                    preview_frames.put_nowait(packet)
+                except queue.Full:
+                    try:
+                        preview_frames.get_nowait()
+                    except queue.Empty:
+                        pass
+                    preview_frames.put_nowait(packet)
+                del packet
             del frame
             # Inference time counts toward the interval, avoiding extra delay
             # on slow hardware. Stop interrupts all pacing/retry sleeps.
@@ -170,6 +184,87 @@ def detector_loop(config, stop, events, generation, paused=None):
                 send("error", f"Detector cleanup failed: {exc}")
             finally:
                 send("stopped")
+
+
+def model_face_annotation(face, detection):
+    """Display existing decisions; do not add another set of detection rules."""
+    if face.index == detection.owner_index:
+        return "#26ce75", "Owner (estimate)"
+    if face.index in detection.viewer_indices:
+        return "#f4515c", "Viewer candidate"
+    return "#f4c344", "Other face"
+
+
+class ModelView:
+    """Opt-in camera display, not a security cover. Tk main thread only."""
+    def __init__(self, root, on_close, resume_enabled):
+        self.window = tk.Toplevel(root)
+        self.window.title("Screen Shield — Model view · cover OFF")
+        self.window.geometry("860x700")
+        self.window.minsize(640, 520)
+        self.window.configure(background="#101b28")
+        self.window.columnconfigure(0, weight=1)
+        self.window.rowconfigure(2, weight=1)
+        tk.Label(self.window, text="MODEL VIEW — PRIVACY COVER OFF", font=("Helvetica", 18, "bold"),
+                 background="#101b28", foreground="#f4c344").grid(row=0, column=0, pady=(18, 6), padx=16)
+        tk.Label(self.window, text="Green: owner estimate   ·   Yellow: other face   ·   Red: viewer candidate",
+                 font=("Helvetica", 12), wraplength=600, background="#101b28", foreground="white").grid(row=1, column=0, padx=16, pady=(0, 12))
+        self.canvas = tk.Canvas(self.window, background="black", highlightthickness=0, width=640, height=400)
+        self.canvas.grid(row=2, column=0, sticky="nsew", padx=16)
+        self.image_id = self.canvas.create_image(0, 0, anchor="center")
+        self.message_id = self.canvas.create_text(320, 200, text="Waiting for the camera…", fill="white", font=("Helvetica", 15), width=570)
+        self.status = tk.StringVar(value="This window never triggers a real screen cover.")
+        tk.Label(self.window, textvariable=self.status, font=("Helvetica", 12), wraplength=600,
+                 background="#101b28", foreground="#d8e3ec").grid(row=3, column=0, pady=10, padx=16)
+        tk.Label(self.window, text="Colors show face/angle rules, not identity, eye gaze, or intent. No video is recorded.",
+                 font=("Helvetica", 11), wraplength=600, background="#101b28", foreground="#a9bdcd").grid(row=4, column=0, padx=16)
+        label = "Close & resume protection" if resume_enabled else "Close & release camera"
+        tk.Button(self.window, text=label, command=on_close).grid(row=5, column=0, pady=(10, 18))
+        self.window.protocol("WM_DELETE_WINDOW", on_close)
+        self._photo = None
+        self.font = ImageFont.load_default(size=15)
+
+    def clear(self, message):
+        self.canvas.itemconfigure(self.image_id, image="")
+        self._photo = None
+        self.canvas.itemconfigure(self.message_id, text=message)
+        self.canvas.coords(self.message_id, max(1, self.canvas.winfo_width()) / 2,
+                           max(1, self.canvas.winfo_height()) / 2)
+        self.status.set(message + " Privacy cover remains OFF in model view.")
+
+    def render(self, frame, detection):
+        image = Image.fromarray(frame[:, :, ::-1])
+        try:
+            draw = ImageDraw.Draw(image)
+            for face in detection.faces:
+                color, label = model_face_annotation(face, detection)
+                x1, y1, x2, y2 = face.box
+                draw.rectangle((x1, y1, x2, y2), outline=color, width=3)
+                details = (f" yaw {face.yaw:+.0f}° pitch {face.pitch:+.0f}°"
+                           if face.yaw is not None and face.pitch is not None else " pose unknown")
+                text = label + details
+                bounds = draw.textbbox((0, 0), text, font=self.font)
+                tw, th = bounds[2] - bounds[0] + 10, bounds[3] - bounds[1] + 10
+                left = max(0, min(x1, image.width - tw))
+                top = max(0, y1 - th)
+                draw.rectangle((left, top, left + tw, top + th), fill=color)
+                draw.text((left + 5, top + 3 - bounds[1]), text, font=self.font, fill="#101b28")
+            width, height = max(1, self.canvas.winfo_width()), max(1, self.canvas.winfo_height())
+            image.thumbnail((width, height), Image.Resampling.LANCZOS)
+            self._photo = ImageTk.PhotoImage(image, master=self.window)
+            self.canvas.coords(self.image_id, width / 2, height / 2)
+            self.canvas.itemconfigure(self.image_id, image=self._photo)
+            self.canvas.itemconfigure(self.message_id, text="")
+            quality = ("Unknown: " + detection.reason.replace("_", " ")) if detection.viewer_present is None else f"{len(detection.faces)} faces · {len(detection.viewer_indices)} viewer candidates"
+            owner_status = "Primary user present" if detection.owner_index is not None else "No primary user in position"
+            self.status.set(f"{quality} · {owner_status} · Detector state: {detection.state} · Cover OFF")
+        finally:
+            image.close()
+
+    def close(self):
+        self.canvas.itemconfigure(self.image_id, image="")
+        self._photo = None
+        self.window.destroy()
 
 
 class ScreenShield:
@@ -196,6 +291,10 @@ class ScreenShield:
         self.images = {True: shield_image(True), False: shield_image(False)}
         self.panel_status = None
         self.notice_text = ""
+        self.model_view = None
+        self.model_view_restore_disabled = False
+        self.preview_requested = threading.Event()
+        self.preview_frames = queue.Queue(maxsize=1)
 
     @property
     def enabled(self):
@@ -226,7 +325,7 @@ class ScreenShield:
         root = self.root
         root.title("Screen Shield")
         root.configure(background="#101b28")
-        root.geometry("480x510")
+        root.geometry("480x570")
         root.resizable(False, False)
         self.panel_icon = ImageTk.PhotoImage(self.images[True], master=root)
         tk.Label(root, image=self.panel_icon, background="#101b28").pack(pady=(24, 8))
@@ -249,6 +348,10 @@ class ScreenShield:
         tk.Button(buttons, text="Permissions…", width=13,
                   command=self.open_permissions).grid(row=1, column=0, padx=5, pady=4)
         tk.Button(buttons, text="Quit", width=13, command=self.request_quit).grid(row=1, column=1, padx=5, pady=4)
+        self.panel_model_button = tk.Button(buttons, text="Open model view (testing)", width=29, command=self.toggle_model_view)
+        self.panel_model_button.grid(row=2, column=0, columnspan=2, padx=5, pady=(10, 4))
+        tk.Label(root, text="Model view shows live boxes with the privacy cover OFF.",
+                 font=("Helvetica", 11), background="#101b28", foreground="#f4c344").pack(pady=(9, 0))
         tk.Label(root, text="Allow Camera and Screen Recording when asked.\nAccessibility / Input Monitoring enables the global shortcut.",
                  font=("Helvetica", 11), wraplength=420, justify="center",
                  background="#101b28", foreground="#a9bdcd").pack(pady=(20, 10))
@@ -272,6 +375,8 @@ class ScreenShield:
             status, detail = "Disabled", "Your webcam is released. Enable when you want protection."
         elif self.phase in ("starting", "stopping"):
             status, detail = "Starting…" if self.phase == "starting" else "Stopping…", "Please wait a moment."
+        elif self.model_view is not None:
+            status, detail = "Model view — cover OFF", "Testing only. Close the model view to restore the previous protection setting."
         elif self.overlay.is_snoozed():
             status, detail = "Snoozed", "Protection is paused and will resume after the snooze."
         elif self.feed_lost:
@@ -284,6 +389,43 @@ class ScreenShield:
         self.panel_detail.set(self.notice_text or detail)
         self.panel_toggle.configure(text="Disable" if self.enabled else "Enable",
                                     state="normal" if self.phase in ("enabled", "disabled") else "disabled")
+        self.panel_model_button.configure(text="Close model view" if self.model_view is not None else "Open model view (testing)",
+                                          state="normal" if self.phase in ("enabled", "disabled") else "disabled")
+
+    def discard_preview_frames(self):
+        while True:
+            try:
+                self.preview_frames.get_nowait()
+            except queue.Empty:
+                return
+
+    def toggle_model_view(self):
+        if self.model_view is not None:
+            self.close_model_view()
+            return
+        if self.phase not in ("enabled", "disabled") or self.quitting.is_set():
+            return
+        self.model_view_restore_disabled = not self.enabled
+        self.discard_preview_frames()
+        self.model_view = ModelView(self.root, self.close_model_view, resume_enabled=self.enabled)
+        self.overlay.hide()
+        self.preview_requested.set()
+        self.paused.clear()
+        if self.phase == "disabled":
+            self.enable()
+        logging.info("Model view opened: privacy cover suppressed until the view is closed")
+
+    def close_model_view(self, restore_prior_state=True):
+        if self.model_view is None:
+            return
+        self.preview_requested.clear()
+        view, self.model_view = self.model_view, None
+        self.discard_preview_frames()
+        view.close()
+        restore_disabled, self.model_view_restore_disabled = self.model_view_restore_disabled, False
+        if restore_prior_state and restore_disabled:
+            self.disable()
+        logging.info("Model view closed; prior enable/disable setting restored")
 
     def enable(self):
         if self.phase != "disabled" or self.quitting.is_set():
@@ -292,17 +434,19 @@ class ScreenShield:
         self.notice_text = ""
         self.feed_lost = False
         self.paused.clear()
-        if self.overlay.is_snoozed():
+        if self.overlay.is_snoozed() and self.model_view is None:
             self.paused.set()
         self.generation += 1
         self.worker_stop = threading.Event()
         self.worker = threading.Thread(target=detector_loop,
-            args=(self.config, self.worker_stop, self.events, self.generation, self.paused),
+            args=(self.config, self.worker_stop, self.events, self.generation, self.paused,
+                  self.preview_requested, self.preview_frames),
             name=f"ScreenShieldDetector-{self.generation}")
         self.worker.start()
         self.refresh_tray()
 
     def disable(self):
+        self.close_model_view(restore_prior_state=False)
         self.state = "SAFE"
         self.feed_lost = False
         self.overlay.hide()
@@ -319,6 +463,7 @@ class ScreenShield:
         self.worker.join()
         self.worker = self.worker_stop = None
         self.phase, self.state = "disabled", "SAFE"
+        self.close_model_view(restore_prior_state=False)
         self.feed_lost = False
         self.overlay.hide()
         self.accept_toggle_after = time.monotonic()
@@ -412,6 +557,7 @@ class ScreenShield:
                 lambda icon, item: self.request_toggle(),
                 enabled=self.phase in ("enabled", "disabled")),
             pystray.MenuItem("Snooze 5 min", lambda icon, item: self.events.put(("snooze", None))),
+            pystray.MenuItem("Model view (testing)", lambda icon, item: self.events.put(("model_view", None))),
             pystray.MenuItem("Quit", lambda icon, item: self.events.put(("quit", None))))
 
     def refresh_tray(self):
@@ -428,6 +574,8 @@ class ScreenShield:
     def handle_event(self, kind, value):
         if kind == "quit":
             self.quitting.set()
+        elif kind == "model_view":
+            self.toggle_model_view()
         elif kind == "toggle":
             # Ignore queued keystrokes from a transition, even if they are
             # processed just after ready/cleanup. Never queue a restart.
@@ -452,6 +600,9 @@ class ScreenShield:
             elif action == "camera_lost" and self.enabled and not self.quitting.is_set():
                 first_loss = not self.feed_lost
                 self.feed_lost = True
+                self.discard_preview_frames()
+                if self.model_view is not None:
+                    self.model_view.clear("Camera unavailable — retrying automatically.")
                 logging.warning("%s", payload)
                 if first_loss:
                     self.notify_camera_loss()
@@ -489,15 +640,27 @@ class ScreenShield:
             self.listener_failed = True
             self.notice_text = "Global shortcut stopped. Use the buttons; check Accessibility / Input Monitoring and restart."
             logging.error("Global hotkey listener stopped. Check permissions; Ctrl+C still quits")
-        if self.overlay.is_snoozed():
+        if self.overlay.is_snoozed() and self.model_view is None:
             self.paused.set()
         else:
             self.paused.clear()
+        try:
+            generation, frame, detection = self.preview_frames.get_nowait()
+        except queue.Empty:
+            pass
+        else:
+            if (self.model_view is not None and self.enabled and not self.feed_lost
+                    and generation == self.generation and not self.quitting.is_set()):
+                self.model_view.render(frame, detection)
+            del frame
         if self.quitting.is_set():
             self.disable()
             if self.worker is None:
                 self.root.quit()
                 return
+        elif self.model_view is not None:
+            if self.overlay.is_visible():
+                self.overlay.hide()
         elif self.enabled and (self.state == "INTRUDER" or (self.config["fail_closed"] and self.feed_lost)):
             if not self.overlay.is_visible() and not self.overlay.is_snoozed():
                 self.overlay.show()
@@ -518,6 +681,7 @@ class ScreenShield:
         if self.worker_stop is not None:
             self.worker_stop.set()
         try:
+            self.close_model_view(restore_prior_state=False)
             self.overlay.hide()
         finally:
             # Cleanup failures must not skip the remaining resources.
@@ -534,6 +698,7 @@ class ScreenShield:
                     except Exception:
                         logging.exception("Desktop service cleanup failed")
             self.worker = self.worker_stop = None
+            self.discard_preview_frames()
             self.phase, self.state = "disabled", "SAFE"
             for image in self.images.values():
                 image.close()
