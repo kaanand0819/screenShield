@@ -1,0 +1,22 @@
+WEBVTT
+
+00:00.000 --> 00:04.000
+A person uses a laptop at a desk. Their face is outlined green: primary user.
+
+00:04.000 --> 00:09.500
+Another person walks through the background. Their yellow face box indicates they do not pass the viewer checks.
+
+00:09.500 --> 00:11.700
+A person approaches behind the laptop user. Their face box is yellow.
+
+00:11.700 --> 00:12.500
+They turn toward the screen. Their face box turns red: viewer candidate.
+
+00:12.500 --> 00:13.300
+The demonstration closes Model view and resumes normal protection.
+
+00:13.300 --> 00:18.000
+The screen is blurred. A message reads: Screen Shield: someone may be viewing your screen.
+
+00:18.000 --> 00:20.000
+The viewer has left. After the absence delay, the workspace returns.
